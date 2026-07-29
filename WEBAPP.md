@@ -176,6 +176,30 @@ Pushing to `main` afterwards redeploys automatically.
 - Free services also get 750 instance-hours a month, which one sleepy service
   won't come close to.
 
+### Troubleshooting an empty result
+
+If the deployed app reports `0 cards (0 unique)` on collections that work
+locally, the log line now says what the browser actually saw — the page title,
+the HTML size, and whether it spotted a Cloudflare interstitial, a captcha, or
+card rows that simply didn't match the selector. Read that line first; it
+distinguishes "we were blocked" from "it was too slow" from "the markup
+differs".
+
+Three knobs, settable as Render environment variables (*Settings → Environment*)
+with no code change and a quick restart:
+
+| Variable | Default | Try when |
+| --- | --- | --- |
+| `SELECTOR_TIMEOUT_MS` | 60000 | The log shows the real page (title looks right, no challenge) but no rows. A 0.1-CPU instance renders slowly. |
+| `NAV_TIMEOUT_MS` | 90000 | Navigation itself times out before the page is even parsed. |
+| `BLOCK_RESOURCES` | 1 | Set to `0` to stop aborting images/fonts/media, in case blocking them interferes with the page's own scripts. |
+
+If instead the log names a Cloudflare challenge or a captcha, the request is
+being refused because it comes from a datacenter IP. No timeout will fix that,
+and other free hosts share the same problem. The realistic options at that point
+are running it at home or putting a residential proxy in front — worth deciding
+whether the convenience is worth that complexity.
+
 ### Troubleshooting the build
 
 **`ModuleNotFoundError: No module named 'playwright'`** — the Playwright base
