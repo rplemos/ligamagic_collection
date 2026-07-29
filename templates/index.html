@@ -83,16 +83,16 @@
 <body>
 <div class="wrap">
   <h1>LigaMagic Collection Comparer</h1>
-  <p class="sub">Lists the cards from collection 2 that also appear in collection 1.</p>
+  <p class="sub">Lists the cards from a LigaMagic collection that are present in my Want/Have collections.</p>
 
   <div class="panel">
     <form id="form">
       <div class="field">
-        <label for="c1">Collection 1 (compare to)</label>
+        <label for="c1">Have/Want</label>
         <input id="c1" name="c1" placeholder="e.g. 123456" autocomplete="off" required>
       </div>
       <div class="field">
-        <label for="c2">Collection 2 (compared)</label>
+        <label for="c2">Collection</label>
         <input id="c2" name="c2" placeholder="e.g. 654321" autocomplete="off" required>
       </div>
       <button id="run" type="submit">Compare</button>
@@ -189,8 +189,8 @@ form.addEventListener('submit', (event) => {
     resultsPanel.classList.remove('hidden');
     summary.innerHTML =
       '<b>' + data.matches + '</b> matching listings &nbsp;·&nbsp; ' +
-      'Collection 1: <b>' + data.c1.total + '</b> (' + data.c1.unique + ' unique) &nbsp;·&nbsp; ' +
-      'Collection 2: <b>' + data.c2.total + '</b> (' + data.c2.unique + ' unique)';
+      'Have/Want: <b>' + data.c1.total + '</b> (' + data.c1.unique + ' unique) &nbsp;·&nbsp; ' +
+      'Collection: <b>' + data.c2.total + '</b> (' + data.c2.unique + ' unique)';
     downloadBtn.disabled = rows.length === 0;
     addLog('Done.');
     finish();
