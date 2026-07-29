@@ -176,10 +176,23 @@ Pushing to `main` afterwards redeploys automatically.
 - Free services also get 750 instance-hours a month, which one sleepy service
   won't come close to.
 
-Note the image deliberately does not install `requirements.txt` — the base
-image already has the matching Playwright version, and reinstalling it can
-desync the Python package from the bundled Chromium. That file is for local
-installs only.
+### Troubleshooting the build
+
+**`ModuleNotFoundError: No module named 'playwright'`** — the Playwright base
+image keeps its own copy of the package in root's user site-packages, which a
+non-root process can't import. The Dockerfile installs it system-wide instead,
+pinned via `ARG PLAYWRIGHT_VERSION` to match the `FROM` tag. If you ever bump
+the image tag, bump that pin in the same commit: the image ships Chromium for
+one specific Playwright version, and a mismatched package looks for a browser
+revision directory that doesn't exist.
+
+The build also runs a verification step, as the runtime user, that imports
+playwright and checks the Chromium binary is really there. So this class of
+problem now fails the build with a clear message rather than crash-looping the
+container after deploy.
+
+Note the image deliberately doesn't use `requirements.txt` — it installs pinned
+versions directly. That file is for local installs only.
 
 ### If it misbehaves once deployed
 
