@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LigaMagic Collection Comparer</title>
+<style>
+  :root {
+    --bg: #14161a;
+    --panel: #1c1f26;
+    --border: #2c313b;
+    --text: #e6e8ec;
+    --muted: #939aa6;
+    --accent: #6ea8fe;
+    --accent-dark: #4b86dc;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 20px 64px;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 18px;
+  }
+  form { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 6px; flex: 1 1 200px; }
+  label { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  input {
+    background: #12141a;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 10px 12px;
+    font-size: 15px;
+    width: 100%;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  button {
+    background: var(--accent);
+    color: #0d1017;
+    border: 0;
+    border-radius: 6px;
+    padding: 10px 18px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: var(--accent-dark); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--border); }
+  button.ghost:hover:not(:disabled) { background: #232833; }
+  #log {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    color: var(--muted);
+    max-height: 190px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+  }
+  #log div { padding: 1px 0; }
+  #log div.err { color: #ff8b8b; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; position: sticky; top: 0; background: var(--panel); }
+  tbody tr:hover { background: #232833; }
+  .table-scroll { max-height: 60vh; overflow-y: auto; }
+  .results-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .summary { color: var(--muted); font-size: 14px; }
+  .summary b { color: var(--text); font-weight: 600; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>LigaMagic Collection Comparer</h1>
+  <p class="sub">Lists the cards from collection 2 that also appear in collection 1.</p>
+
+  <div class="panel">
+    <form id="form">
+      <div class="field">
+        <label for="c1">Collection 1 (compare to)</label>
+        <input id="c1" name="c1" placeholder="e.g. 123456" autocomplete="off" required>
+      </div>
+      <div class="field">
+        <label for="c2">Collection 2 (compared)</label>
+        <input id="c2" name="c2" placeholder="e.g. 654321" autocomplete="off" required>
+      </div>
+      <button id="run" type="submit">Compare</button>
+    </form>
+  </div>
+
+  <div class="panel hidden" id="logPanel">
+    <div id="log"></div>
+  </div>
+
+  <div class="panel hidden" id="resultsPanel">
+    <div class="results-head">
+      <div class="summary" id="summary"></div>
+      <button class="ghost" id="download" type="button" disabled>Download TSV</button>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>{% for column in header %}<th>{{ column }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const form = document.getElementById('form');
+const runBtn = document.getElementById('run');
+const logPanel = document.getElementById('logPanel');
+const logBox = document.getElementById('log');
+const resultsPanel = document.getElementById('resultsPanel');
+const tbody = document.getElementById('tbody');
+const summary = document.getElementById('summary');
+const downloadBtn = document.getElementById('download');
+
+let rows = [];
+let source = null;
+let finished = false;
+
+function addLog(message, isError) {
+  const line = document.createElement('div');
+  line.textContent = message;
+  if (isError) line.className = 'err';
+  logBox.appendChild(line);
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+function finish() {
+  finished = true;
+  if (source) { source.close(); source = null; }
+  runBtn.disabled = false;
+  runBtn.textContent = 'Compare';
+}
+
+form.addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (source) return;
+
+  rows = [];
+  finished = false;
+  tbody.innerHTML = '';
+  logBox.innerHTML = '';
+  summary.textContent = '';
+  downloadBtn.disabled = true;
+  logPanel.classList.remove('hidden');
+  resultsPanel.classList.add('hidden');
+  runBtn.disabled = true;
+  runBtn.textContent = 'Working...';
+
+  const query = new URLSearchParams({
+    c1: document.getElementById('c1').value,
+    c2: document.getElementById('c2').value
+  });
+  source = new EventSource('/stream?' + query.toString());
+
+  source.addEventListener('log', (e) => addLog(JSON.parse(e.data)));
+
+  source.addEventListener('row', (e) => {
+    const row = JSON.parse(e.data);
+    rows.push(row);
+    resultsPanel.classList.remove('hidden');
+    const tr = document.createElement('tr');
+    for (const cell of row) {
+      const td = document.createElement('td');
+      td.textContent = cell;
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  });
+
+  source.addEventListener('done', (e) => {
+    const data = JSON.parse(e.data);
+    resultsPanel.classList.remove('hidden');
+    summary.innerHTML =
+      '<b>' + data.matches + '</b> matching listings &nbsp;·&nbsp; ' +
+      'Collection 1: <b>' + data.c1.total + '</b> (' + data.c1.unique + ' unique) &nbsp;·&nbsp; ' +
+      'Collection 2: <b>' + data.c2.total + '</b> (' + data.c2.unique + ' unique)';
+    downloadBtn.disabled = rows.length === 0;
+    addLog('Done.');
+    finish();
+  });
+
+  // Server-reported problem (bad IDs, scrape blew up).
+  source.addEventListener('failed', (e) => {
+    addLog(JSON.parse(e.data), true);
+    finish();
+  });
+
+  // Transport-level problem. EventSource retries by default, which would
+  // restart the whole scrape, so close it instead.
+  source.addEventListener('error', () => {
+    if (finished) return;
+    addLog('Connection to the server was lost.', true);
+    finish();
+  });
+});
+
+downloadBtn.addEventListener('click', async () => {
+  const response = await fetch('/tsv', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(rows)
+  });
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'comparison.tsv';
+  link.click();
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>

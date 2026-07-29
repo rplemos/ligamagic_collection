@@ -1,0 +1,12 @@
+# Render Blueprint. With this file in the repo root, Render can create the
+# service for you instead of you filling in the dashboard form by hand.
+services:
+  - type: web
+    name: ligamagic-comparer
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    autoDeploy: true

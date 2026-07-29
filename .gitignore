@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local scratch
+probe_dump.html
+
+# Card data — keeps exports and old have/want lists out of the repo.
+# Use `git add -f <file>` if you ever do want to commit one.
+*.tsv
