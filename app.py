@@ -133,17 +133,27 @@ def stream():
 
 @app.route("/tsv", methods=["POST"])
 def tsv():
-    """Builds the TSV from the rows the browser already has (data rows only)."""
-    rows = request.get_json(silent=True) or []
+    """Builds the TSV from the rows the browser currently has on screen.
+
+    The browser sends whatever survived its filters, so the download always
+    matches the visible table.
+    """
+    payload = request.get_json(silent=True) or {}
+    rows = payload.get("rows", [])
+    collection = clean_id(payload.get("collection"))
+
+    filename = f"collection_{collection}.tsv" if collection else "comparison.tsv"
+
     buffer = io.StringIO()
     writer = csv.writer(buffer, delimiter="\t", lineterminator="\n")
     writer.writerow(HEADER_ROW)
     for row in rows:
         writer.writerow(row)
+
     return Response(
         buffer.getvalue(),
         mimetype="text/tab-separated-values",
-        headers={"Content-Disposition": "attachment; filename=comparison.tsv"},
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 

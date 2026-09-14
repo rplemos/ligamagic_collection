@@ -88,25 +88,43 @@ def describe_failure(page, error):
     except Exception:
         return f"{kind}, and the page itself could not be read"
 
-    haystack = html.lower()
-    signals = []
-    for needle, label in [
-        ("cc_card_", "card rows ARE in the HTML"),
+    # Search the title too — the challenge page is localised, so the giveaway
+    # may only be in the title ("Um momento…" is the pt-BR "Just a moment…").
+    haystack = (html + " " + title).lower()
+
+    # Any of these means the request was refused before the real page loaded.
+    BLOCK_MARKERS = [
         ("just a moment", "Cloudflare interstitial"),
+        ("um momento", "Cloudflare interstitial (pt-BR)"),
+        ("challenge-platform", "Cloudflare challenge script"),
+        ("cdn-cgi/challenge", "Cloudflare challenge"),
         ("cf-browser-verification", "Cloudflare verification"),
         ("cf-challenge", "Cloudflare challenge"),
+        ("checking your browser", "browser check"),
+        ("verificando seu navegador", "browser check (pt-BR)"),
         ("captcha", "captcha"),
+        ("attention required", "Cloudflare block page"),
         ("acesso negado", "'acesso negado'"),
         ("access denied", "'access denied'"),
         ("too many requests", "rate limited"),
+    ]
+    OTHER_MARKERS = [
+        ("cc_card_", "card rows ARE in the HTML"),
         ("card=", "card links present"),
-    ]:
-        if needle in haystack:
-            signals.append(label)
+    ]
 
-    return (f"{kind}: no card rows appeared. "
-            f"url={url} title={title!r} html={len(html):,} chars; "
-            f"signals: {', '.join(signals) if signals else 'none'}")
+    blocked = [label for needle, label in BLOCK_MARKERS if needle in haystack]
+    others = [label for needle, label in OTHER_MARKERS if needle in haystack]
+    signals = blocked + others
+
+    detail = (f"url={url} title={title!r} html={len(html):,} chars; "
+              f"signals: {', '.join(signals) if signals else 'none'}")
+
+    if blocked:
+        return (f"BLOCKED — this host's IP is being refused by the site's bot "
+                f"protection, not a timeout. {detail}")
+
+    return f"{kind}: no card rows appeared. {detail}"
 
 
 def log(message):

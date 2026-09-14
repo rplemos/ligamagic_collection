@@ -22,7 +22,7 @@
     color: var(--text);
     font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
-  .wrap { max-width: 1000px; margin: 0 auto; }
+  .wrap { max-width: 1100px; margin: 0 auto; }
   h1 { font-size: 22px; margin: 0 0 4px; }
   .sub { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
   .panel {
@@ -32,10 +32,10 @@
     padding: 18px;
     margin-bottom: 18px;
   }
-  form { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+  form#form { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
   .field { display: flex; flex-direction: column; gap: 6px; flex: 1 1 200px; }
   label { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-  input {
+  input[type=text], select {
     background: #12141a;
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -44,7 +44,8 @@
     font-size: 15px;
     width: 100%;
   }
-  input:focus { outline: none; border-color: var(--accent); }
+  select { padding: 8px 10px; }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
   button {
     background: var(--accent);
     color: #0d1017;
@@ -69,31 +70,55 @@
   }
   #log div { padding: 1px 0; }
   #log div.err { color: #ff8b8b; }
+
+  /* filters */
+  .filters { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; }
+  .filter-group { min-width: 150px; }
+  .filter-group > label { display: block; margin-bottom: 8px; }
+  .checks { display: flex; flex-wrap: wrap; gap: 4px 14px; max-height: 132px; overflow-y: auto; }
+  .checks label {
+    display: flex; align-items: center; gap: 6px;
+    text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--text);
+    cursor: pointer; white-space: nowrap;
+  }
+  .checks input { accent-color: var(--accent); cursor: pointer; margin: 0; }
+  .filters-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 16px; }
+
+  /* table */
   table { border-collapse: collapse; width: 100%; font-size: 14px; }
   th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
-  th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; position: sticky; top: 0; background: var(--panel); }
+  th {
+    color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
+    position: sticky; top: 0; background: var(--panel); user-select: none;
+  }
+  th.sortable { cursor: pointer; }
+  th.sortable:hover { color: var(--text); }
+  th .arrow { opacity: .45; font-size: 10px; }
+  th.sorted { color: var(--accent); }
+  th.sorted .arrow { opacity: 1; }
   tbody tr:hover { background: #232833; }
   .table-scroll { max-height: 60vh; overflow-y: auto; }
-  .results-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .results-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
   .summary { color: var(--muted); font-size: 14px; }
   .summary b { color: var(--text); font-weight: 600; }
+  .empty { color: var(--muted); padding: 18px 4px; }
   .hidden { display: none; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>LigaMagic Collection Comparer</h1>
-  <p class="sub">Lists the cards from a LigaMagic collection that are present in my Want/Have collections.</p>
+  <p class="sub">Lists the cards from collection 2 that also appear in collection 1.</p>
 
   <div class="panel">
     <form id="form">
       <div class="field">
-        <label for="c1">Have/Want</label>
-        <input id="c1" name="c1" placeholder="Have: 544044 / Want: 553927" autocomplete="off" required>
+        <label for="c1">Collection 1 (compare to)</label>
+        <input type="text" id="c1" name="c1" placeholder="e.g. 123456" autocomplete="off" required>
       </div>
       <div class="field">
-        <label for="c2">Collection</label>
-        <input id="c2" name="c2" placeholder="e.g. 654321" autocomplete="off" required>
+        <label for="c2">Collection 2 (compared)</label>
+        <input type="text" id="c2" name="c2" placeholder="e.g. 654321" autocomplete="off" required>
       </div>
       <button id="run" type="submit">Compare</button>
     </form>
@@ -103,6 +128,31 @@
     <div id="log"></div>
   </div>
 
+  <div class="panel hidden" id="filterPanel">
+    <div class="filters">
+      <div class="filter-group">
+        <label for="fEdition">Edition</label>
+        <select id="fEdition"><option value="">All editions</option></select>
+      </div>
+      <div class="filter-group">
+        <label>Language</label>
+        <div class="checks" id="fLanguage"></div>
+      </div>
+      <div class="filter-group">
+        <label>Condition</label>
+        <div class="checks" id="fCondition"></div>
+      </div>
+      <div class="filter-group">
+        <label>Extras</label>
+        <div class="checks" id="fExtras"></div>
+      </div>
+    </div>
+    <div class="filters-foot">
+      <span class="summary" id="filterCount"></span>
+      <button class="ghost" id="reset" type="button">Reset</button>
+    </div>
+  </div>
+
   <div class="panel hidden" id="resultsPanel">
     <div class="results-head">
       <div class="summary" id="summary"></div>
@@ -110,29 +160,75 @@
     </div>
     <div class="table-scroll">
       <table>
-        <thead>
-          <tr>{% for column in header %}<th>{{ column }}</th>{% endfor %}</tr>
-        </thead>
+        <thead><tr id="headRow"></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
     </div>
+    <div class="empty hidden" id="emptyMsg">No rows match the current filters.</div>
   </div>
 </div>
 
 <script>
+const HEADER = {{ header | tojson }};
+const NAME = 0, EDITION = 1, PRICE = 2, LANGUAGE = 3, CONDITION = 4, EXTRAS = 5;
+const CHECKBOX_COLUMNS = { [LANGUAGE]: 'fLanguage', [CONDITION]: 'fCondition', [EXTRAS]: 'fExtras' };
+
 const form = document.getElementById('form');
 const runBtn = document.getElementById('run');
 const logPanel = document.getElementById('logPanel');
 const logBox = document.getElementById('log');
+const filterPanel = document.getElementById('filterPanel');
 const resultsPanel = document.getElementById('resultsPanel');
+const headRow = document.getElementById('headRow');
 const tbody = document.getElementById('tbody');
 const summary = document.getElementById('summary');
+const filterCount = document.getElementById('filterCount');
+const emptyMsg = document.getElementById('emptyMsg');
 const downloadBtn = document.getElementById('download');
+const resetBtn = document.getElementById('reset');
+const editionSelect = document.getElementById('fEdition');
 
-let rows = [];
+let rows = [];           // every match, in the order the server found them
+let view = [];           // what's on screen after filtering and sorting
+let collectionId = '';   // collection 2, used for the download filename
+let sortColumn = null;
+let sortDir = 1;
 let source = null;
 let finished = false;
 
+// ---------- header ----------
+HEADER.forEach((title, index) => {
+  const th = document.createElement('th');
+  th.dataset.index = index;
+  headRow.appendChild(th);
+});
+
+function refreshHeader() {
+  [...headRow.children].forEach((th, index) => {
+    th.className = sortColumn === index ? 'sortable sorted' : 'sortable';
+    th.textContent = HEADER[index];
+    const span = document.createElement('span');
+    span.className = 'arrow';
+    span.textContent = sortColumn === index ? (sortDir === 1 ? ' ▲' : ' ▼') : ' ↕';
+    th.appendChild(span);
+  });
+}
+
+headRow.addEventListener('click', (event) => {
+  const th = event.target.closest('th');
+  if (!th || !finished || !rows.length) return;
+  const index = Number(th.dataset.index);
+  if (sortColumn === index) {
+    sortDir = -sortDir;
+  } else {
+    sortColumn = index;
+    sortDir = 1;
+  }
+  refreshHeader();
+  applyView();
+});
+
+// ---------- logging ----------
 function addLog(message, isError) {
   const line = document.createElement('div');
   line.textContent = message;
@@ -148,20 +244,144 @@ function finish() {
   runBtn.textContent = 'Compare';
 }
 
+// ---------- filters ----------
+function distinctValues(index) {
+  return [...new Set(rows.map((row) => row[index]))]
+    .sort((a, b) => String(a).localeCompare(String(b), 'pt-BR', { sensitivity: 'base' }));
+}
+
+function buildFilters() {
+  editionSelect.innerHTML = '<option value="">All editions</option>';
+  for (const value of distinctValues(EDITION)) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = value;
+    editionSelect.appendChild(option);
+  }
+
+  for (const [index, elementId] of Object.entries(CHECKBOX_COLUMNS)) {
+    const box = document.getElementById(elementId);
+    box.innerHTML = '';
+    for (const value of distinctValues(Number(index))) {
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.value = value;
+      input.addEventListener('change', applyView);
+      label.appendChild(input);
+      label.append(value === '-' ? '— (none)' : value);
+      box.appendChild(label);
+    }
+  }
+}
+
+function checkedValues(elementId) {
+  return new Set(
+    [...document.querySelectorAll('#' + elementId + ' input:checked')].map((input) => input.value)
+  );
+}
+
+function filtersActive() {
+  if (editionSelect.value) return true;
+  return Object.values(CHECKBOX_COLUMNS).some((id) => checkedValues(id).size > 0);
+}
+
+// An empty checkbox group means "no constraint", so a fresh panel shows
+// everything and Reset simply clears the boxes.
+function applyView() {
+  const edition = editionSelect.value;
+  const selected = {};
+  for (const [index, elementId] of Object.entries(CHECKBOX_COLUMNS)) {
+    selected[index] = checkedValues(elementId);
+  }
+
+  view = rows.filter((row) => {
+    if (edition && row[EDITION] !== edition) return false;
+    for (const [index, values] of Object.entries(selected)) {
+      if (values.size && !values.has(row[index])) return false;
+    }
+    return true;
+  });
+
+  if (sortColumn !== null) {
+    const index = sortColumn;
+    const dir = sortDir;
+    view.sort((a, b) => {
+      if (index === PRICE) {
+        const pa = parseFloat(a[PRICE]);
+        const pb = parseFloat(b[PRICE]);
+        const aBad = Number.isNaN(pa);
+        const bBad = Number.isNaN(pb);
+        // Unparseable prices ("Not found") sit at the bottom either way round.
+        if (aBad || bBad) return aBad && bBad ? 0 : (aBad ? 1 : -1);
+        return (pa - pb) * dir;
+      }
+      return String(a[index]).localeCompare(String(b[index]), 'pt-BR', { sensitivity: 'base' }) * dir;
+    });
+  }
+
+  renderRows(view);
+
+  const active = filtersActive();
+  filterCount.innerHTML = active
+    ? 'Showing <b>' + view.length + '</b> of <b>' + rows.length + '</b> rows'
+    : 'Showing all <b>' + rows.length + '</b> rows';
+  resetBtn.disabled = !active && sortColumn === null;
+  downloadBtn.disabled = view.length === 0;
+  emptyMsg.classList.toggle('hidden', view.length > 0);
+}
+
+function renderRows(list) {
+  const fragment = document.createDocumentFragment();
+  for (const row of list) fragment.appendChild(buildRow(row));
+  tbody.innerHTML = '';
+  tbody.appendChild(fragment);
+}
+
+function buildRow(row) {
+  const tr = document.createElement('tr');
+  for (const cell of row) {
+    const td = document.createElement('td');
+    td.textContent = cell;
+    tr.appendChild(td);
+  }
+  return tr;
+}
+
+editionSelect.addEventListener('change', applyView);
+
+resetBtn.addEventListener('click', () => {
+  editionSelect.value = '';
+  document.querySelectorAll('.checks input:checked').forEach((input) => { input.checked = false; });
+  sortColumn = null;
+  sortDir = 1;
+  refreshHeader();
+  applyView();
+});
+
+// ---------- run ----------
 form.addEventListener('submit', (event) => {
   event.preventDefault();
   if (source) return;
 
   rows = [];
+  view = [];
+  collectionId = '';
+  sortColumn = null;
+  sortDir = 1;
   finished = false;
   tbody.innerHTML = '';
   logBox.innerHTML = '';
   summary.textContent = '';
+  filterCount.textContent = '';
   downloadBtn.disabled = true;
+  emptyMsg.classList.add('hidden');
   logPanel.classList.remove('hidden');
+  filterPanel.classList.add('hidden');
   resultsPanel.classList.add('hidden');
   runBtn.disabled = true;
   runBtn.textContent = 'Working...';
+  refreshHeader();
 
   const query = new URLSearchParams({
     c1: document.getElementById('c1').value,
@@ -171,39 +391,39 @@ form.addEventListener('submit', (event) => {
 
   source.addEventListener('log', (e) => addLog(JSON.parse(e.data)));
 
+  // Rows are appended as they arrive so there's something to watch; the
+  // filter panel only appears once the full set is known.
   source.addEventListener('row', (e) => {
     const row = JSON.parse(e.data);
     rows.push(row);
     resultsPanel.classList.remove('hidden');
-    const tr = document.createElement('tr');
-    for (const cell of row) {
-      const td = document.createElement('td');
-      td.textContent = cell;
-      tr.appendChild(td);
-    }
-    tbody.appendChild(tr);
+    tbody.appendChild(buildRow(row));
   });
 
   source.addEventListener('done', (e) => {
     const data = JSON.parse(e.data);
+    collectionId = data.c2.id;
     resultsPanel.classList.remove('hidden');
     summary.innerHTML =
       '<b>' + data.matches + '</b> matching listings &nbsp;·&nbsp; ' +
-      'Have/Want: <b>' + data.c1.total + '</b> (' + data.c1.unique + ' unique) &nbsp;·&nbsp; ' +
-      'Collection: <b>' + data.c2.total + '</b> (' + data.c2.unique + ' unique)';
-    downloadBtn.disabled = rows.length === 0;
+      'Collection 1: <b>' + data.c1.total + '</b> (' + data.c1.unique + ' unique) &nbsp;·&nbsp; ' +
+      'Collection 2: <b>' + data.c2.total + '</b> (' + data.c2.unique + ' unique)';
     addLog('Done.');
     finish();
+
+    if (rows.length) {
+      buildFilters();
+      filterPanel.classList.remove('hidden');
+    }
+    refreshHeader();
+    applyView();
   });
 
-  // Server-reported problem (bad IDs, scrape blew up).
   source.addEventListener('failed', (e) => {
     addLog(JSON.parse(e.data), true);
     finish();
   });
 
-  // Transport-level problem. EventSource retries by default, which would
-  // restart the whole scrape, so close it instead.
   source.addEventListener('error', () => {
     if (finished) return;
     addLog('Connection to the server was lost.', true);
@@ -211,17 +431,18 @@ form.addEventListener('submit', (event) => {
   });
 });
 
+// ---------- download ----------
 downloadBtn.addEventListener('click', async () => {
   const response = await fetch('/tsv', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(rows)
+    body: JSON.stringify({ collection: collectionId, rows: view })
   });
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'comparison.tsv';
+  link.download = collectionId ? 'collection_' + collectionId + '.tsv' : 'comparison.tsv';
   link.click();
   URL.revokeObjectURL(url);
 });

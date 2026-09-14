@@ -194,11 +194,45 @@ with no code change and a quick restart:
 | `NAV_TIMEOUT_MS` | 90000 | Navigation itself times out before the page is even parsed. |
 | `BLOCK_RESOURCES` | 1 | Set to `0` to stop aborting images/fonts/media, in case blocking them interferes with the page's own scripts. |
 
-If instead the log names a Cloudflare challenge or a captcha, the request is
-being refused because it comes from a datacenter IP. No timeout will fix that,
-and other free hosts share the same problem. The realistic options at that point
-are running it at home or putting a residential proxy in front — worth deciding
-whether the convenience is worth that complexity.
+If instead the log starts with `BLOCKED`, the request is being refused by
+Cloudflare because it comes from a datacenter IP. **This is what happens on
+Render** — the page comes back as a challenge interstitial titled
+"Um momento…", identical for every collection ID. No timeout tuning fixes it,
+and other free hosts share the same IP reputation problem.
+
+## Serving it from home instead
+
+Since the scrape only works from a residential IP, the working arrangement is:
+the app runs on your Mac, and a tunnel gives it a public HTTPS address. Your
+friends need no software. The catch is unavoidable — your Mac must be on, awake,
+and running the app.
+
+Start the app, keeping the machine from sleeping:
+
+```bash
+cd ~/Documents/ligascrape
+caffeinate -i python3 app.py
+```
+
+Then, in a second terminal, expose it. A Cloudflare quick tunnel needs no
+account and no domain:
+
+```bash
+brew install cloudflared
+cloudflared tunnel --url http://localhost:5001
+```
+
+It prints a `https://<random-words>.trycloudflare.com` URL. Share that. The URL
+changes each time you restart the tunnel, which is fine for occasional use; a
+free Cloudflare account plus a domain gets you a stable one.
+
+Tailscale Funnel is the alternative if you'd rather have a permanent address:
+install Tailscale, then `tailscale funnel 5001`. It gives you a fixed
+`*.ts.net` URL, and unlike plain Tailscale, Funnel is reachable by people who
+don't have Tailscale installed.
+
+Either way the traffic exits from your home IP, so Cloudflare's bot protection
+treats it exactly like your own browser — which is the whole point.
 
 ### Troubleshooting the build
 
